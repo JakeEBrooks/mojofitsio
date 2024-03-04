@@ -1,4 +1,4 @@
-struct iobounds:
+struct config:
     # Header structure:
     # |    Keyword    |    Value Indicator   |     Value     |
     # | -- 8 bytes -- | --    2 bytes     -- | -- 70 bytes --|
@@ -8,3 +8,5 @@ struct iobounds:
     alias header_valueind_length = 2 # bytes
     alias header_line_length = 80 # bytes
     alias fits_block_length = 2880 # bytes
+    
+    # --------------------------------------------------------
