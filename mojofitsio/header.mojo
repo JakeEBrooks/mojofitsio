@@ -1,7 +1,7 @@
 from collections.dict import Dict
 
-from .byteio import get_header_keyword, get_header_valueind, get_header_field, get_header_line
-from .config import config
+from mojofitsio.byteio.header import get_header_keyword, get_header_valueind, get_header_field, get_header_line
+from mojofitsio.config import config
 
 struct Header:
     var hdict: Dict[HeaderKey, String]
@@ -59,21 +59,3 @@ struct HeaderKey(KeyElement, Stringable):
 
     fn __eq__(self, other: Self) -> Bool:
         return self.s == other.s
-
-fn header_from_blocks(buff: Tensor[DType.int8]) -> Header:
-    alias END = "END     "
-
-    var foundEND: Bool = False
-    var linecounter: Int = 0
-    var keyword: String
-    var field: String
-    var outheader = Header()
-    while not foundEND and linecounter < buff.num_elements()//config.header_line_length:
-        keyword = get_header_keyword(buff, linecounter)
-        if keyword == END:
-            foundEND = True
-        else:
-            field = get_header_field(buff, linecounter)
-            outheader[keyword.strip()] = field
-            linecounter += 1
-    return outheader
