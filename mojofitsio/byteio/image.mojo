@@ -7,7 +7,6 @@ from mojofitsio.byteio.general import (
     f32_frombytes,
     f64_frombytes)
 
-
 fn construct_i16_image(buff: Tensor[DType.int8], shape: TensorShape) -> Tensor[DType.int16]:
     """
     Construct a Tensor of 16-bit integers from an integral number of FITS blocks representing a FITS Image.

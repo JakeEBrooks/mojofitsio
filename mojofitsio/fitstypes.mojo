@@ -1,6 +1,6 @@
 from mojofitsio.header import Header
 
-trait IsHDUType(CollectionElement, Stringable):
+trait IsHDUType(CollectionElement):
     fn header(self) -> Header: ...
     fn datatype(self) -> FITSDataType: ...
     fn HDUtype(self) -> HDUType: ...
@@ -46,6 +46,17 @@ struct HDUType(Stringable):
         elif self.value == 4:
             outstr = "ANY"
         return outstr
+    
+    @staticmethod
+    fn from_string(field: String) -> Self:
+        var outtype: Self = Self.EMPTY
+        if "'IMAGE   '" in field:
+            outtype = Self.IMAGE
+        elif "'TABLE   '" in field:
+            outtype = Self.TABLE
+        elif "'BINTABLE'" in field:
+            outtype = Self.BINTABLE
+        return outtype
 
 @register_passable("trivial")
 struct FITSDataType(Stringable):
@@ -67,22 +78,22 @@ struct FITSDataType(Stringable):
     fn __str__(self) -> String:
         var out: String = ""
         if self.value == 8:
-            out = "UI8"
+            out = "Unsigned 8-bit Integer"
         elif self.value == 16:
-            out = "SI16"
+            out = "Signed 16-bit Integer"
         elif self.value == 32:
-            out = "SI32"
+            out = "Signed 32-bit Integer"
         elif self.value == 64:
-            out = "SI64"
+            out = "Signed 64-bit Integer"
         elif self.value == -32:
-            out = "F32"
+            out = "32-bit Float"
         elif self.value == -64:
-            out = "F64"
+            out = "64-bit Float"
         return out
     
     @always_inline
-    fn bitpix(self) -> Int:
-        return int(self.value)
+    fn bitpix(self) -> Int8:
+        return self.value
 
     @staticmethod
     fn from_bitpix(bitpix: Int) raises -> Self:
