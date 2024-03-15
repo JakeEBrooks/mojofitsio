@@ -1,38 +1,122 @@
-from mojofitsio.header import Header
+from tensor import TensorShape
 
-trait IsHDUType(CollectionElement):
-    fn header(self) -> Header: ...
-    fn datatype(self) -> FITSDataType: ...
-    fn HDUtype(self) -> HDUType: ...
 
-struct HDU[T: IsHDUType]:
-    var header: Header
-    var data: T
-    var hdutype: HDUType
-    var dtype: FITSDataType
+struct FITSData[T: FITSDType]:
+    var data: Tensor[T.dtype]
+    var fitstype: FITSType
 
-    fn __init__(inout self, header: Header, data: T):
-        self.header = header
+    fn __init__(inout self, data: Tensor[T.dtype], fitstype: FITSType):
         self.data = data
-        self.hdutype = data.HDUtype()
-        self.dtype = data.datatype()
+        self.fitstype = fitstype
+    
+    fn __copyinit__(inout self, existing: Self):
+        self.data = existing.data
+        self.fitstype = existing.fitstype
+    
+    fn __moveinit__(inout self, owned existing: Self):
+        self.data = existing.data^
+        self.fitstype = existing.fitstype
+
 
 @register_passable("trivial")
-struct HDUType(Stringable):
+struct FITSDType(Stringable):
+    """
+    A wrapper around DType that restricts possible values to those acceptable in the
+    FITS format. Also designed to interact with DType as normal and go to and from values of BITPIX.
+    """
+    var dtype: DType
+
+    alias uint8 = FITSDType{dtype: DType.uint8}
+    alias int16 = FITSDType{dtype: DType.int16}
+    alias int32 = FITSDType{dtype: DType.int32}
+    alias int64 = FITSDType{dtype: DType.int64}
+    alias float32 = FITSDType{dtype: DType.float32}
+    alias float64 = FITSDType{dtype: DType.float64}
+
+    @always_inline
+    fn __eq__(self, other: Self) -> Bool:
+        return self.dtype == other.dtype
+    @always_inline
+    fn __eq__(self, other: DType) -> Bool:
+        return self.dtype == other
+
+    @always_inline
+    fn __neq__(self, other: Self) -> Bool:
+        return self.dtype != other.dtype
+    @always_inline
+    fn __neq__(self, other: DType) -> Bool:
+        return self.dtype != other
+    
+    @always_inline
+    fn __str__(self) -> String:
+        return self.dtype.__str__()
+    
+    @always_inline
+    fn isa[other: Self](self) -> Bool:
+        return self.dtype.isa[other.dtype]()
+    @always_inline
+    fn isa[other: DType](self) -> Bool:
+        return self.dtype.isa[other]()
+    
+    @always_inline
+    fn sizeof(self) -> Int:
+        return self.dtype.sizeof()
+    
+    @always_inline
+    fn bitwidth(self) -> Int:
+        return self.dtype.bitwidth()
+    
+    @staticmethod
+    fn is_valid_bitpix(bitpix: Int) -> Bool:
+        if (bitpix == 8 or bitpix == 16 or bitpix == 32 
+            or bitpix == 64 or bitpix == -32 or bitpix == -64):
+            return True
+        else:
+            return False
+    
+    @staticmethod
+    fn from_bitpix(bitpix: Int) raises -> Self:
+        var outtype: Self
+        if bitpix == 8:
+            outtype = FITSDType.uint8
+        elif bitpix == 16:
+            outtype = FITSDType.int16
+        elif bitpix == 32:
+            outtype = FITSDType.int32
+        elif bitpix == 64:
+            outtype = FITSDType.int64
+        elif bitpix == -32:
+            outtype = FITSDType.float32
+        elif bitpix == -64:
+            outtype = FITSDType.float64
+        else:
+            raise Error("Invalid value of BITPIX supplied to FITSDType")
+        return outtype
+    
+    @staticmethod
+    fn from_bitpix(bitpix: String) raises -> Self:
+        return Self.from_bitpix(atol(bitpix))
+
+@register_passable("trivial")
+struct FITSType(Stringable):
+    """
+    A type representing the FITS type of a data structure, e.g. whether it is an IMAGE or a TABLE. Not to be confused with `FITSDType`.
+    """
     var value: UInt8
 
-    alias EMPTY = HDUType(0)
-    alias IMAGE = HDUType(1)
-    alias TABLE = HDUType(2)
-    alias BINTABLE = HDUType(3)
-    alias ANY = HDUType(4)
+    alias EMPTY = FITSType{value: 0}
+    alias IMAGE = FITSType{value: 1}
+    alias TABLE = FITSType{value: 2}
+    alias BINTABLE = FITSType{value: 3}
+    
+    @always_inline
+    fn __eq__(self, other: Self) -> Bool:
+        return self.value == other.value
 
-    fn __init__(inout self, value: UInt8):
-        self.value = value
-
-    fn __eq__(self, existing: Self) -> Bool:
-        return self.value == existing.value
-
+    @always_inline    
+    fn __neq__(self, other: Self) -> Bool:
+        return self.value != other.value
+    
     fn __str__(self) -> String:
         var outstr: String = ""
         if self.value == 0:
@@ -43,12 +127,10 @@ struct HDUType(Stringable):
             outstr = "TABLE"
         elif self.value == 3:
             outstr = "BINTABLE"
-        elif self.value == 4:
-            outstr = "ANY"
         return outstr
-    
+
     @staticmethod
-    fn from_string(field: String) -> Self:
+    fn from_headerfield(field: String) -> Self:
         var outtype: Self = Self.EMPTY
         if "'IMAGE   '" in field:
             outtype = Self.IMAGE
@@ -57,50 +139,4 @@ struct HDUType(Stringable):
         elif "'BINTABLE'" in field:
             outtype = Self.BINTABLE
         return outtype
-
-@register_passable("trivial")
-struct FITSDataType(Stringable):
-    var value: Int8
-
-    alias UI8 = FITSDataType(8)
-    alias SI16 = FITSDataType(16)
-    alias SI32 = FITSDataType(32)
-    alias SI64 = FITSDataType(64)
-    alias F32 = FITSDataType(-32)
-    alias F64 = FITSDataType(-64)
-
-    fn __init__(inout self, value: Int8):
-        self.value = value
     
-    fn __eq__(self, existing: Self) -> Bool:
-        return self.value == existing.value
-
-    fn __str__(self) -> String:
-        var out: String = ""
-        if self.value == 8:
-            out = "Unsigned 8-bit Integer"
-        elif self.value == 16:
-            out = "Signed 16-bit Integer"
-        elif self.value == 32:
-            out = "Signed 32-bit Integer"
-        elif self.value == 64:
-            out = "Signed 64-bit Integer"
-        elif self.value == -32:
-            out = "32-bit Float"
-        elif self.value == -64:
-            out = "64-bit Float"
-        return out
-    
-    @always_inline
-    fn bitpix(self) -> Int8:
-        return self.value
-
-    @staticmethod
-    fn from_bitpix(bitpix: Int) raises -> Self:
-        return Self(bitpix)
-
-    @staticmethod
-    fn from_bitpix(bitpix: String) raises -> Self:
-        var to_int: Int = atol(bitpix)
-        return Self.from_bitpix(to_int)
-

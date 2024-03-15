@@ -1,9 +1,6 @@
 from collections.dict import Dict
 
-from mojofitsio.byteio.header import get_header_keyword, get_header_valueind, get_header_field, get_header_line
-from mojofitsio.config import config
-
-struct Header:
+struct Header: # This isn't ta final implementation, until Dict gets improved it'll do
     var hdict: Dict[HeaderKey, String]
     var keys: DynamicVector[HeaderKey]
 
